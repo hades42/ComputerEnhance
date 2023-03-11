@@ -30,7 +30,6 @@ int main(int argc, char *argv[]) {
   /*only need to read 2 byte as a time becuase each instruction is 2 byte*/
   FILE *asmFile = fopen(programName, "rb");
   char buffer[2];
-  char ahihi = GET_D;
   if (asmFile) {
     printf("bits 16\n\n");
     while (!feof(asmFile)) {
