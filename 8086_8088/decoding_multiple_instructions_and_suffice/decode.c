@@ -1,4 +1,5 @@
 #include <stdbool.h>
+#include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 
@@ -7,6 +8,10 @@
 
 char *registers[2][8] = {{"al", "cl", "dl", "bl", "ah", "ch", "dh", "bh"},
                          {"ax", "cx", "dx", "bx", "sp", "bp", "si", "di"}};
+
+char *address_calculation[] = {
+    "bx + si", "bx + di", "bp + si", "bp + di", "si", "di", "bp", "bx",
+};
 
 int main() {
   FILE *asmFile = fopen("test", "rb");
@@ -46,10 +51,39 @@ int main() {
         uint8_t reg = nextBuffer >> 3 & 0b111;
         uint8_t r_m = nextBuffer & 0b111;
 
-        if (d) {
-          printf("mov %s, %s \n", registers[w][reg], registers[w][r_m]);
-        } else {
-          printf("mov %s, %s \n", registers[w][r_m], registers[w][reg]);
+        if (mod == 0b11) {
+          // Register mode
+          if (d) {
+            printf("mov %s, %s \n", registers[w][reg], registers[w][r_m]);
+          } else {
+            printf("mov %s, %s \n", registers[w][r_m], registers[w][reg]);
+          }
+        } else if (mod == 0b00) {
+          if (d) {
+            printf("mov %s, [%s] \n", registers[w][reg],
+                   address_calculation[r_m]);
+          } else {
+            printf("mov [%s], %s \n", address_calculation[r_m],
+                   registers[w][reg]);
+          }
+        } else if (mod == 0b01) {
+          uint8_t displ;
+          fread(&displ, sizeof(uint8_t), 1, asmFile);
+          if (d) {
+            if (displ) {
+
+            } else {
+              printf("mov %s, [%s] \n", registers[w][reg],
+                     address_calculation[r_m]);
+            }
+          } else {
+            if (displ) {
+
+            } else {
+              printf("mov [%s], %s \n", address_calculation[r_m],
+                     registers[w][reg]);
+            }
+          }
         }
       }
     }
