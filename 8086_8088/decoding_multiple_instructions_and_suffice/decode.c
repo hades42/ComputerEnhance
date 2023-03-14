@@ -71,14 +71,36 @@ int main() {
           fread(&displ, sizeof(uint8_t), 1, asmFile);
           if (d) {
             if (displ) {
-
+              printf("mov %s, [%s + %d] \n", registers[w][reg],
+                     address_calculation[r_m], displ);
             } else {
               printf("mov %s, [%s] \n", registers[w][reg],
                      address_calculation[r_m]);
             }
           } else {
             if (displ) {
-
+              printf("mov [%s + %d], %s \n", address_calculation[r_m], displ,
+                     registers[w][reg]);
+            } else {
+              printf("mov [%s], %s \n", address_calculation[r_m],
+                     registers[w][reg]);
+            }
+          }
+        } else if (mod == 0b10) {
+          uint32_t displ;
+          fread(&displ, sizeof(uint32_t), 1, asmFile);
+          if (d) {
+            if (displ) {
+              printf("mov %s, [%s + %d] \n", registers[w][reg],
+                     address_calculation[r_m], displ);
+            } else {
+              printf("mov %s, [%s] \n", registers[w][reg],
+                     address_calculation[r_m]);
+            }
+          } else {
+            if (displ) {
+              printf("mov [%s + %d], %s \n", address_calculation[r_m], displ,
+                     registers[w][reg]);
             } else {
               printf("mov [%s], %s \n", address_calculation[r_m],
                      registers[w][reg]);
