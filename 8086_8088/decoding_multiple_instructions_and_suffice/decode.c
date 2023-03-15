@@ -5,6 +5,7 @@
 
 #define IMM_TO_REGISTER 0b1011
 #define REGISTER_TO_REGISTER 0b100010
+#define IMM_TO_REGISTER_MEM 0b1100011
 
 char *registers[2][8] = {{"al", "cl", "dl", "bl", "ah", "ch", "dh", "bh"},
                          {"ax", "cx", "dx", "bx", "sp", "bp", "si", "di"}};
@@ -12,6 +13,39 @@ char *registers[2][8] = {{"al", "cl", "dl", "bl", "ah", "ch", "dh", "bh"},
 char *address_calculation[] = {
     "bx + si", "bx + di", "bp + si", "bp + di", "si", "di", "bp", "bx",
 };
+
+int16_t read_sign_extended(FILE *input, bool w) {
+  if (w) {
+    int16_t output;
+    fread(&output, sizeof(int16_t), 1, input);
+    return output;
+  } else {
+    int8_t output;
+    fread(&output, sizeof(int8_t), 1, input);
+    return output;
+  }
+}
+
+int16_t read_disp(uint8_t mod, FILE *input) {
+  if (mod) {
+    return read_sign_extended(input, mod == 0b10);
+  } else {
+    return 0;
+  }
+}
+
+void outputEffectiveAddress(uint8_t mod, uint8_t r_m, FILE *input) {
+  int16_t displ = read_disp(mod, input);
+  if (displ) {
+    if (displ > 0) {
+      printf("[%s + %d]", address_calculation[r_m], displ);
+    } else if (displ < 0) {
+      printf("[%s - %d]", address_calculation[r_m], -displ);
+    }
+  } else {
+    printf("[%s]", address_calculation[r_m]);
+  }
+}
 
 int main() {
   FILE *asmFile = fopen("test", "rb");
@@ -58,54 +92,40 @@ int main() {
           } else {
             printf("mov %s, %s \n", registers[w][r_m], registers[w][reg]);
           }
-        } else if (mod == 0b00) {
+        } else {
           if (d) {
-            printf("mov %s, [%s] \n", registers[w][reg],
-                   address_calculation[r_m]);
+            printf("mov %s, ", registers[w][reg]);
+            outputEffectiveAddress(mod, r_m, asmFile);
+            printf("\n");
           } else {
-            printf("mov [%s], %s \n", address_calculation[r_m],
-                   registers[w][reg]);
+            printf("mov ");
+            outputEffectiveAddress(mod, r_m, asmFile);
+            printf(", %s\n", registers[w][reg]);
           }
-        } else if (mod == 0b01) {
-          uint8_t displ;
-          fread(&displ, sizeof(uint8_t), 1, asmFile);
-          if (d) {
-            if (displ) {
-              printf("mov %s, [%s + %d] \n", registers[w][reg],
-                     address_calculation[r_m], displ);
-            } else {
-              printf("mov %s, [%s] \n", registers[w][reg],
-                     address_calculation[r_m]);
-            }
+        }
+
+      } else if (buffer >> 1 == IMM_TO_REGISTER_MEM) {
+        bool w = buffer & 1;
+
+        uint8_t nextBuffer;
+        fread(&nextBuffer, sizeof(uint8_t), 1, asmFile);
+
+        uint8_t mod = nextBuffer >> 6;
+        uint8_t r_m = nextBuffer & 0b111;
+
+        if (mod == 0b11) {
+          if (w) {
+            // Want to read signed number because there are negative numbers
+            int16_t data;
+            fread(&data, sizeof(int16_t), 1, asmFile);
+            printf("mov %s, %d\n", registers[w][r_m], data);
           } else {
-            if (displ) {
-              printf("mov [%s + %d], %s \n", address_calculation[r_m], displ,
-                     registers[w][reg]);
-            } else {
-              printf("mov [%s], %s \n", address_calculation[r_m],
-                     registers[w][reg]);
-            }
+            // byte
+            int8_t data;
+            fread(&data, sizeof(int8_t), 1, asmFile);
+            printf("mov %s, %d\n", registers[w][r_m], data);
           }
-        } else if (mod == 0b10) {
-          uint32_t displ;
-          fread(&displ, sizeof(uint32_t), 1, asmFile);
-          if (d) {
-            if (displ) {
-              printf("mov %s, [%s + %d] \n", registers[w][reg],
-                     address_calculation[r_m], displ);
-            } else {
-              printf("mov %s, [%s] \n", registers[w][reg],
-                     address_calculation[r_m]);
-            }
-          } else {
-            if (displ) {
-              printf("mov [%s + %d], %s \n", address_calculation[r_m], displ,
-                     registers[w][reg]);
-            } else {
-              printf("mov [%s], %s \n", address_calculation[r_m],
-                     registers[w][reg]);
-            }
-          }
+        } else {
         }
       }
     }
