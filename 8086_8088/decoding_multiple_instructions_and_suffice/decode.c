@@ -6,6 +6,7 @@
 #define IMM_TO_REGISTER 0b1011
 #define REGISTER_TO_REGISTER 0b100010
 #define IMM_TO_REGISTER_MEM 0b1100011
+#define MEM_TO_ACCUMULATOR 0b101000
 
 char *registers[2][8] = {{"al", "cl", "dl", "bl", "ah", "ch", "dh", "bh"},
                          {"ax", "cx", "dx", "bx", "sp", "bp", "si", "di"}};
@@ -13,6 +14,7 @@ char *registers[2][8] = {{"al", "cl", "dl", "bl", "ah", "ch", "dh", "bh"},
 char *address_calculation[] = {
     "bx + si", "bx + di", "bp + si", "bp + di", "si", "di", "bp", "bx",
 };
+char *programName;
 
 int16_t read_sign_extended(FILE *input, bool w) {
   if (w) {
@@ -53,8 +55,21 @@ void outputEffectiveAddress(uint8_t mod, uint8_t r_m, FILE *input) {
   }
 }
 
-int main() {
-  FILE *asmFile = fopen("test", "rb");
+int parseParam(int argc, char *argv[]) {
+  programName = argv[1];
+  if (argc < 2) {
+    fprintf(stderr, "Usage: %s [FILE]...\n", programName);
+    return 0;
+  }
+  return 1;
+}
+
+int main(int argc, char *argv[]) {
+  if (!parseParam(argc, argv)) {
+    exit(EXIT_FAILURE);
+  }
+
+  FILE *asmFile = fopen(programName, "rb");
   uint8_t buffer;
   if (asmFile) {
     printf("bits 16\n\n");
@@ -131,6 +146,36 @@ int main() {
           } else {
             int16_t data = read_sign_extended(asmFile, w);
             printf(", word %d\n", data);
+          }
+        }
+      } else if (buffer >> 2 == MEM_TO_ACCUMULATOR) {
+        bool w = buffer & 1;
+        bool d = buffer >> 1 & 1;
+        if (d) {
+          // Memory to accumulator
+          if (w) {
+            // 16bits
+            uint16_t data;
+            fread(&data, sizeof(uint16_t), 1, asmFile);
+            printf("mov [%d], %s\n", data, registers[w][0]);
+          } else {
+            // 8 bits
+            uint8_t data;
+            fread(&data, sizeof(uint8_t), 1, asmFile);
+            printf("mov [%d], %s\n", data, registers[w][0]);
+          }
+        } else {
+          // Memory to accumulator
+          if (w) {
+            // 16bits
+            uint16_t data;
+            fread(&data, sizeof(uint16_t), 1, asmFile);
+            printf("mov %s, [%d]\n", registers[w][0], data);
+          } else {
+            // 8 bits
+            uint8_t data;
+            fread(&data, sizeof(uint8_t), 1, asmFile);
+            printf("mov %s, [%d]\n", registers[w][0], data);
           }
         }
       }
