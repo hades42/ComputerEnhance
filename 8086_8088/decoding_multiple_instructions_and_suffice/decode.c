@@ -35,15 +35,21 @@ int16_t read_disp(uint8_t mod, FILE *input) {
 }
 
 void outputEffectiveAddress(uint8_t mod, uint8_t r_m, FILE *input) {
-  int16_t displ = read_disp(mod, input);
-  if (displ) {
-    if (displ > 0) {
-      printf("[%s + %d]", address_calculation[r_m], displ);
-    } else if (displ < 0) {
-      printf("[%s - %d]", address_calculation[r_m], -displ);
-    }
+  if (mod == 0b00 && r_m == 0b110) {
+    int16_t displ;
+    fread(&displ, sizeof(int16_t), 1, input);
+    printf("[%d]", displ);
   } else {
-    printf("[%s]", address_calculation[r_m]);
+    int16_t displ = read_disp(mod, input);
+    if (displ) {
+      if (displ > 0) {
+        printf("[%s + %d]", address_calculation[r_m], displ);
+      } else if (displ < 0) {
+        printf("[%s - %d]", address_calculation[r_m], -displ);
+      }
+    } else {
+      printf("[%s]", address_calculation[r_m]);
+    }
   }
 }
 
@@ -112,20 +118,20 @@ int main() {
 
         uint8_t mod = nextBuffer >> 6;
         uint8_t r_m = nextBuffer & 0b111;
-
         if (mod == 0b11) {
-          if (w) {
-            // Want to read signed number because there are negative numbers
-            int16_t data;
-            fread(&data, sizeof(int16_t), 1, asmFile);
-            printf("mov %s, %d\n", registers[w][r_m], data);
-          } else {
-            // byte
-            int8_t data;
-            fread(&data, sizeof(int8_t), 1, asmFile);
-            printf("mov %s, %d\n", registers[w][r_m], data);
-          }
+          int16_t data = read_sign_extended(asmFile, w);
+          printf("mov %s, %d\n", registers[w][r_m], data);
         } else {
+          printf("mov ");
+          outputEffectiveAddress(mod, r_m, asmFile);
+
+          if (w == 0) {
+            int16_t data = read_sign_extended(asmFile, w);
+            printf(", byte %d\n", data);
+          } else {
+            int16_t data = read_sign_extended(asmFile, w);
+            printf(", word %d\n", data);
+          }
         }
       }
     }
