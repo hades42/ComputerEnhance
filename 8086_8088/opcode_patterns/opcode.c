@@ -22,6 +22,11 @@
 #define ADD_IMMEDIATE_TO_REGISTER_MEMORY 0b100000
 #define ADD_IMMEDIATE_TO_ACCUMULATOR 0b0000010
 
+// For sub instruction
+#define SUB_REGISTER_TO_REGISTER 0b001010
+#define SUB_IMMEDIATE_TO_REGISTER_MEMORY 0b100000
+#define SUB_IMMEDIATE_TO_ACCUMULATOR 0b0010110
+
 char *namesWord[8] = {"ax", "cx", "dx", "bx", "sp", "bp", "si", "di"};
 char *namesByte[8] = {"al", "cl", "dl", "bl", "ah", "ch", "dh", "bh"};
 char *effectiveAddress[8] = {"bx + si", "bx + di", "bp + si", "bp + di", "si", "di", "bp", "bx"};
@@ -123,6 +128,158 @@ void outPutJustEffectiveAddress(char mod, char rm, FILE *input)
                 printf("[%s]", effectiveAddress[rm]);
             }
         }
+    }
+}
+
+void registerToRegister(uint8_t buffer, FILE *asmFile)
+{
+    char d = buffer & GET_D;
+    char w = buffer & GET_W;
+    uint8_t nextBuffer;
+    fread(&nextBuffer, sizeof(uint8_t), 1, asmFile);
+
+    char mod = nextBuffer >> 6;
+    char reg = (nextBuffer & GET_REG) >> 3;
+    char rm = nextBuffer & GET_RM;
+
+    char *regValue = w ? namesWord[reg] : namesByte[reg];
+    char *rmValue = w ? namesWord[rm] : namesByte[rm];
+
+    if (mod == 0b11)
+    {
+        if (d)
+        {
+            printf("%s, %s", regValue, rmValue);
+        }
+        else
+        {
+            printf("%s, %s", rmValue, regValue);
+        }
+    }
+    else
+    {
+        int16_t bitDisplacement_16;
+        int8_t bitDisplacement_8;
+        if (mod == 0b00)
+        {
+            if (rm == 0b110)
+            {
+                fread(&bitDisplacement_16, sizeof(int16_t), 1, asmFile);
+                if (d)
+                {
+                    printf("%s, [%d]", regValue, bitDisplacement_16);
+                }
+                else
+                {
+                    printf("[%d], %s", bitDisplacement_16, regValue);
+                }
+            }
+            else
+            {
+                if (d)
+                {
+                    printf("%s, [%s]", regValue, effectiveAddress[rm]);
+                }
+                else
+                {
+                    printf("[%s], %s", effectiveAddress[rm], regValue);
+                }
+            }
+        }
+        else if (mod == 0b01)
+        {
+            if (d)
+            {
+                printf("%s, ", regValue);
+                outPutJustEffectiveAddress(mod, rm, asmFile);
+            }
+            else
+            {
+                outPutJustEffectiveAddress(mod, rm, asmFile);
+                printf(", %s", regValue);
+            }
+        }
+        else if (mod == 0b10)
+        {
+            if (d)
+            {
+                printf("%s, ", regValue);
+                outPutJustEffectiveAddress(mod, rm, asmFile);
+            }
+            else
+            {
+                outPutJustEffectiveAddress(mod, rm, asmFile);
+                printf(", %s", regValue);
+            }
+        }
+    }
+}
+
+void immediateToRegisterMem(uint8_t buffer, FILE *asmFile)
+{
+    char w = buffer & 1;
+    char s = (buffer >> 1) & 1;
+    uint8_t nextBuffer;
+    fread(&nextBuffer, sizeof(uint8_t), 1, asmFile);
+    char mod = nextBuffer >> 6;
+    char rm = nextBuffer & GET_RM;
+    char reg  = (nextBuffer & GET_REG) >> 3;
+    if (reg == 0b000) {
+        printf("add ");
+    } else if (reg == 0b101) {
+        printf("sub ");
+    }
+
+    int16_t data_16;
+    int8_t data_8;
+    if (mod == 0b11)
+    {
+        if (w)
+        {
+            printf("%s", namesWord[rm]);
+        }
+        else
+        {
+            printf("%s", namesByte[rm]);
+        }
+    }
+    else
+    {
+        if (w)
+        {
+            printf("word ");
+        }
+        else
+        {
+            printf("byte ");
+        }
+        outPutJustEffectiveAddress(mod, rm, asmFile);
+    }
+    if (s == 0 && w == 1)
+    {
+        fread(&data_16, sizeof(int16_t), 1, asmFile);
+    }
+    else
+    {
+        fread(&data_8, sizeof(int8_t), 1, asmFile);
+    }
+    printf(", %d", (s == 0 && w == 1) ? data_16 : data_8);
+}
+
+void immediateToAcc(uint8_t buffer, FILE *asmFile)
+{
+    char w = buffer & GET_W;
+    if (w)
+    {
+        int16_t data;
+        fread(&data, sizeof(int16_t), 1, asmFile);
+        printf("%s, %d", namesWord[0], data);
+    }
+    else
+    {
+        int8_t data;
+        fread(&data, sizeof(int8_t), 1, asmFile);
+        printf("%s, %d", namesByte[0], data);
     }
 }
 
@@ -283,146 +440,25 @@ int main(int argc, char *argv[])
             }
             else if (buffer >> 2 == ADD_REGISTER_TO_REGISTER)
             {
-                char d = buffer & GET_D;
-                char w = buffer & GET_W;
-                uint8_t nextBuffer;
-                fread(&nextBuffer, sizeof(uint8_t), 1, asmFile);
-
-                char mod = nextBuffer >> 6;
-                char reg = (nextBuffer & GET_REG) >> 3;
-                char rm = nextBuffer & GET_RM;
                 printf("add ");
-
-                char *regValue = w ? namesWord[reg] : namesByte[reg];
-                char *rmValue = w ? namesWord[rm] : namesByte[rm];
-
-                if (mod == 0b11)
-                {
-                    if (d)
-                    {
-                        printf("%s, %s", regValue, rmValue);
-                    }
-                    else
-                    {
-                        printf("%s, %s", rmValue, regValue);
-                    }
-                }
-                else
-                {
-                    int16_t bitDisplacement_16;
-                    int8_t bitDisplacement_8;
-                    if (mod == 0b00)
-                    {
-                        if (rm == 0b110)
-                        {
-                            fread(&bitDisplacement_16, sizeof(int16_t), 1, asmFile);
-                            if (d)
-                            {
-                                printf("%s, [%d]", regValue, bitDisplacement_16);
-                            }
-                            else
-                            {
-                                printf("[%d], %s", bitDisplacement_16, regValue);
-                            }
-                        }
-                        else
-                        {
-                            if (d)
-                            {
-                                printf("%s, [%s]", regValue, effectiveAddress[rm]);
-                            }
-                            else
-                            {
-                                printf("[%s], %s", effectiveAddress[rm], regValue);
-                            }
-                        }
-                    }
-                    else if (mod == 0b01)
-                    {
-                        if (d)
-                        {
-                            printf("%s, ", regValue);
-                            outPutJustEffectiveAddress(mod, rm, asmFile);
-                        }
-                        else
-                        {
-                            outPutJustEffectiveAddress(mod, rm, asmFile);
-                            printf(", %s", regValue);
-                        }
-                    }
-                    else if (mod == 0b10)
-                    {
-                        if (d)
-                        {
-                            printf("%s, ", regValue);
-                            outPutJustEffectiveAddress(mod, rm, asmFile);
-                        }
-                        else
-                        {
-                            outPutJustEffectiveAddress(mod, rm, asmFile);
-                            printf(", %s", regValue);
-                        }
-                    }
-                }
+                registerToRegister(buffer, asmFile);
             }
             else if (buffer >> 2 == ADD_IMMEDIATE_TO_REGISTER_MEMORY)
             {
-                char w = buffer & 1;
-                char s = (buffer >> 1) & 1;
-                uint8_t nextBuffer;
-                fread(&nextBuffer, sizeof(uint8_t), 1, asmFile);
-                char mod = nextBuffer >> 6;
-                char rm = nextBuffer & GET_RM;
-
-                printf("add ");
-                int16_t data_16;
-                int8_t data_8;
-                if (mod == 0b11)
-                {
-                    if (w)
-                    {
-                        printf("%s", namesWord[rm]);
-                    }
-                    else
-                    {
-                        printf("%s", namesByte[rm]);
-                    }
-                }
-                else
-                {
-                    if (w)
-                    {
-                        printf("word ");
-                    }
-                    else
-                    {
-                        printf("byte ");
-                    }
-                    outPutJustEffectiveAddress(mod, rm, asmFile);
-                }
-                if (s == 0 && w == 1)
-                {
-                    fread(&data_16, sizeof(int16_t), 1, asmFile);
-                }
-                else
-                {
-                    fread(&data_8, sizeof(int8_t), 1, asmFile);
-                }
-                printf(", %d", (s == 0 && w == 1) ? data_16 : data_8);
+                immediateToRegisterMem(buffer, asmFile);
             }
             else if (buffer >> 1 == ADD_IMMEDIATE_TO_ACCUMULATOR)
             {
-                char w = buffer & GET_W;
                 printf("add ");
-                if (w) {
-                    int16_t data;
-                    fread(&data, sizeof(int16_t), 1,asmFile);
-                    printf("%s, %d", namesWord[0], data);
-                } else {
-                    int8_t data;
-                    fread(&data, sizeof(int8_t), 1, asmFile);
-                    printf("%s, %d", namesByte[0], data);
-                }
+                immediateToAcc(buffer, asmFile);
+            } else if (buffer >> 2 == SUB_REGISTER_TO_REGISTER) {
+                printf("sub ");
+                registerToRegister(buffer, asmFile);
+            } else if (buffer >> 2 == ADD_IMMEDIATE_TO_REGISTER_MEMORY) {
+                immediateToRegisterMem(buffer, asmFile);
+            } else if (buffer >> 1 == SUB_IMMEDIATE_TO_ACCUMULATOR) {
+                printf("sub ");
+                immediateToAcc(buffer, asmFile);
             }
             printf("\n");
         }
