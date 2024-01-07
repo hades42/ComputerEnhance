@@ -1,3 +1,5 @@
+#include "jumpDecode.h"
+#include "jumpDecode.cpp"
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdint.h>
@@ -27,11 +29,23 @@
 #define SUB_IMMEDIATE_TO_REGISTER_MEMORY 0b100000
 #define SUB_IMMEDIATE_TO_ACCUMULATOR 0b0010110
 
+#define CMP_REGISTER_TO_REGISTER 0b001110
+#define CMP_IMMEDIATE_TO_REGISTER_MEMORY 0b100000
+#define CMP_IMMEDIATE_TO_ACCUMULATOR 0b0011110
+
+#define IS_JUMP 0b0111
+#define LOOP 0b111000
+
 char *namesWord[8] = {"ax", "cx", "dx", "bx", "sp", "bp", "si", "di"};
 char *namesByte[8] = {"al", "cl", "dl", "bl", "ah", "ch", "dh", "bh"};
 char *effectiveAddress[8] = {"bx + si", "bx + di", "bp + si", "bp + di", "si", "di", "bp", "bx"};
+char *jumpInstruction[2][8] = {
+    {"jo", "jb", "je", "jbe", "js", "jp", "jl", "jle"},
+    {"jno", "jnb", "jne", "jnbe", "jns", "jnp", "jnl", "jnle"}};
+char *loopInstruction[4] = {"loopnz", "loopz", "loop", "jcxz"};
 
 char *programName;
+
 int parseParam(int argc, char *argv[])
 {
     programName = argv[1];
@@ -223,11 +237,18 @@ void immediateToRegisterMem(uint8_t buffer, FILE *asmFile)
     fread(&nextBuffer, sizeof(uint8_t), 1, asmFile);
     char mod = nextBuffer >> 6;
     char rm = nextBuffer & GET_RM;
-    char reg  = (nextBuffer & GET_REG) >> 3;
-    if (reg == 0b000) {
+    char reg = (nextBuffer & GET_REG) >> 3;
+    if (reg == 0b000)
+    {
         printf("add ");
-    } else if (reg == 0b101) {
+    }
+    else if (reg == 0b101)
+    {
         printf("sub ");
+    }
+    else if (reg == 0b111)
+    {
+        printf("cmp ");
     }
 
     int16_t data_16;
@@ -451,14 +472,55 @@ int main(int argc, char *argv[])
             {
                 printf("add ");
                 immediateToAcc(buffer, asmFile);
-            } else if (buffer >> 2 == SUB_REGISTER_TO_REGISTER) {
+            }
+            else if (buffer >> 2 == SUB_REGISTER_TO_REGISTER)
+            {
                 printf("sub ");
                 registerToRegister(buffer, asmFile);
-            } else if (buffer >> 2 == ADD_IMMEDIATE_TO_REGISTER_MEMORY) {
+            }
+            else if (buffer >> 2 == SUB_IMMEDIATE_TO_REGISTER_MEMORY)
+            {
                 immediateToRegisterMem(buffer, asmFile);
-            } else if (buffer >> 1 == SUB_IMMEDIATE_TO_ACCUMULATOR) {
+            }
+            else if (buffer >> 1 == SUB_IMMEDIATE_TO_ACCUMULATOR)
+            {
                 printf("sub ");
                 immediateToAcc(buffer, asmFile);
+            }
+            else if (buffer >> 2 == CMP_REGISTER_TO_REGISTER)
+            {
+                printf("cmp ");
+                registerToRegister(buffer, asmFile);
+            }
+            else if (buffer >> 2 == CMP_IMMEDIATE_TO_REGISTER_MEMORY)
+            {
+                immediateToRegisterMem(buffer, asmFile);
+            }
+            else if (buffer >> 1 == CMP_IMMEDIATE_TO_ACCUMULATOR)
+            {
+                printf("cmp ");
+                immediateToAcc(buffer, asmFile);
+            }
+            else if (buffer >> 4 == IS_JUMP)
+            {
+                // Get the next 3 bits
+                uint8_t next_3 = (buffer >> 1) & 0b111;
+                // Get the last 1 bit
+                uint8_t last_1 = buffer & 0x1;
+
+                char *jumpInst = jumpInstruction[last_1][next_3];
+                printf("%s ", jumpInst);
+                int8_t nextBuffer;
+                fread(&nextBuffer, sizeof(int8_t), 1, asmFile);
+                printf("$+%d", nextBuffer + 2);
+            } else if (buffer >> 2 == LOOP) {
+                // Get the last 2 bits
+                uint8_t last_2 = buffer & 0b11;
+                char* loopInst = loopInstruction[last_2];
+                printf("%s ", loopInst);
+                int8_t nextBuffer;
+                fread(&nextBuffer, sizeof(int8_t), 1, asmFile);
+                printf("$+%d", nextBuffer + 2);
             }
             printf("\n");
         }
